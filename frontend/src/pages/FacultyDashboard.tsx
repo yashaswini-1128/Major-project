@@ -774,11 +774,14 @@ export default function FacultyDashboard() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <Label className="text-slate-900 font-bold text-lg">Questions ({newTest.questions.length})</Label>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setNewTest({ ...newTest, questions: [...newTest.questions, { type: 'standard', text: '', correctAnswer: '', hintText: '', imageUrl: '', imageFiles: [], imagePreviews: [] }] })}>
-                      <Plus className="w-4 h-4 mr-1" /> Standard
+                  <div className="flex gap-2 flex-wrap">
+                    <Button variant="outline" size="sm" onClick={() => setNewTest({ ...newTest, questions: [...newTest.questions, { type: 'typed', answerType: 'typed', text: '', correctAnswer: '', hintText: '', imageUrl: '', imageFiles: [], imagePreviews: [], marks: 1 }] })}>
+                      <Plus className="w-4 h-4 mr-1" /> Typed Answer
                     </Button>
-                    <Button variant="outline" size="sm" className="border-teal-300 text-teal-700 hover:bg-teal-50" onClick={() => setNewTest({ ...newTest, questions: [...newTest.questions, { type: 'scenario', scenarioText: '', imageFiles: [], imagePreviews: [], imageUrl: '', subQuestions: [{ text: '', correctAnswer: '', hintText: '' }] }] })}>
+                    <Button variant="outline" size="sm" className="border-violet-300 text-violet-700 hover:bg-violet-50" onClick={() => setNewTest({ ...newTest, questions: [...newTest.questions, { type: 'options', answerType: 'options', text: '', correctAnswer: '', hintText: '', imageUrl: '', imageFiles: [], imagePreviews: [], options: [{label:'A',text:''},{label:'B',text:''},{label:'C',text:''},{label:'D',text:''}], marks: 1 }] })}>
+                      <Plus className="w-4 h-4 mr-1" /> MCQ Options
+                    </Button>
+                    <Button variant="outline" size="sm" className="border-teal-300 text-teal-700 hover:bg-teal-50" onClick={() => setNewTest({ ...newTest, questions: [...newTest.questions, { type: 'scenario', answerType: 'scenario', scenarioText: '', imageFiles: [], imagePreviews: [], imageUrl: '', subQuestions: [{ text: '', correctAnswer: '', hintText: '' }], marks: 1 }] })}>
                       <Plus className="w-4 h-4 mr-1" /> Case Scenario
                     </Button>
                   </div>
@@ -837,6 +840,29 @@ export default function FacultyDashboard() {
                           ))}
                         </div>
                       </>
+                    ) : qtype === 'options' ? (
+                      <>
+                        <Input placeholder="Question Text" value={q.text || ''} onChange={e => { const qs = [...newTest.questions]; qs[index].text = e.target.value; setNewTest({ ...newTest, questions: qs }); }} />
+                        <div className="space-y-2">
+                          <Label className="text-slate-700 font-medium text-sm">Options (A / B / C / D)</Label>
+                          {(q.options || [{label:'A',text:''},{label:'B',text:''},{label:'C',text:''},{label:'D',text:''}]).map((opt: any, oi: number) => (
+                            <div key={oi} className="flex items-center gap-2">
+                              <span className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 font-bold text-sm flex items-center justify-center shrink-0">{opt.label}</span>
+                              <Input placeholder={`Option ${opt.label}`} value={opt.text || ''} onChange={e => { const qs = [...newTest.questions]; if (!qs[index].options) qs[index].options = [{label:'A',text:''},{label:'B',text:''},{label:'C',text:''},{label:'D',text:''}]; qs[index].options[oi].text = e.target.value; setNewTest({ ...newTest, questions: qs }); }} />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <Label className="text-sm font-medium text-slate-700">Correct Answer</Label>
+                            <select className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" value={q.correctAnswer || ''} onChange={e => { const qs = [...newTest.questions]; qs[index].correctAnswer = e.target.value; setNewTest({ ...newTest, questions: qs }); }}>
+                              <option value="">Select correct</option>
+                              <option>A</option><option>B</option><option>C</option><option>D</option>
+                            </select>
+                          </div>
+                          <Input placeholder="Hint (optional)" value={q.hintText || ''} onChange={e => { const qs = [...newTest.questions]; qs[index].hintText = e.target.value; setNewTest({ ...newTest, questions: qs }); }} />
+                        </div>
+                      </>
                     ) : (
                       <>
                         <Input placeholder="Question Text" value={q.text} onChange={e => { const qs = [...newTest.questions]; qs[index].text = e.target.value; setNewTest({ ...newTest, questions: qs }); }} />
@@ -856,7 +882,8 @@ export default function FacultyDashboard() {
                       </>
                     )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
               <div className="grid gap-4 py-4">
                 <div className="space-y-2">
