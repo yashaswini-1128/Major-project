@@ -85,11 +85,12 @@ router.delete('/students/:id', async (req, res) => {
   }
 })
 
-// Get all tests and their attempts
+// Get all tests and their attempts (include questions so faculty can pre-populate edit dialog)
 router.get('/tests', async (req, res) => {
   try {
     const tests = await prisma.test.findMany({
       include: {
+        questions: true,
         attempts: {
           include: { student: { select: { name: true, email: true } } }
         }
@@ -115,6 +116,24 @@ router.put('/tests/:id/status', async (req, res) => {
   }
 })
 
+// Helper: map a question payload to Prisma Question fields
+function mapQuestion(q: any) {
+  if (q.type === 'scenario') {
+    return {
+      imageUrl: q.imageUrl || '',
+      text: '__SCENARIO__',          // sentinel so student page knows type
+      correctAnswer: JSON.stringify(q.subQuestions || []),
+      hintText: q.scenarioText || null
+    }
+  }
+  return {
+    imageUrl: q.imageUrl || '',
+    text: q.text || '',
+    correctAnswer: q.correctAnswer || '',
+    hintText: q.hintText || null
+  }
+}
+
 // Create new test
 router.post('/tests', async (req, res) => {
   const { title, subject, duration, accessCode, questions } = req.body
@@ -128,14 +147,10 @@ router.post('/tests', async (req, res) => {
         enabled: false,
         facultyId: req.headers['x-user-id'] as string,
         questions: {
-          create: questions.map((q: any) => ({
-            imageUrl: q.imageUrl,
-            text: q.text,
-            correctAnswer: q.correctAnswer,
-            hintText: q.hintText || null
-          }))
+          create: questions.map(mapQuestion)
         }
-      }
+      },
+      include: { questions: true }
     })
     res.json(test)
   } catch (err) {
@@ -166,18 +181,29 @@ router.delete('/tests/:id', async (req, res) => {
   }
 })
 
-// Update a test's metadata (title, subject, duration, accessCode)
+// Update a test (metadata + replace all questions)
 router.put('/tests/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const { title, subject, duration, accessCode } = req.body
-    const data: any = {
-      title,
-      subject,
-      duration: duration ? Number(duration) : undefined,
-      accessCode: accessCode || null
-    }
-    const updated = await prisma.test.update({ where: { id }, data })
+    const { title, subject, duration, accessCode, questions } = req.body
+
+    // Delete existing questions first
+    await prisma.question.deleteMany({ where: { testId: id } })
+
+    // Update test + recreate questions
+    const updated = await prisma.test.update({
+      where: { id },
+      data: {
+        title,
+        subject,
+        duration: duration ? Number(duration) : undefined,
+        accessCode: accessCode || null,
+        questions: questions?.length
+          ? { create: questions.map(mapQuestion) }
+          : undefined
+      },
+      include: { questions: true }
+    })
     res.json(updated)
   } catch (err) {
     console.error(err)

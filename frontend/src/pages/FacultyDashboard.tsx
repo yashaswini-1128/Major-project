@@ -264,8 +264,8 @@ export default function FacultyDashboard() {
         body: JSON.stringify({
           title: newTest.title,
           subject: newTest.subject,
-          duration: newTest.duration,
-          accessCode: newTest.accessCode || null,
+          duration: Number(testDuration) || newTest.duration,
+          accessCode: testAccessCode || newTest.accessCode || null,
           questions: updatedQuestions
         })
       });
@@ -955,7 +955,43 @@ export default function FacultyDashboard() {
                     </div>
                     {/* Action Buttons */}
                     <div className="flex space-x-2">
-                      <Button variant="ghost" size="sm" className="text-amber-600 hover:bg-amber-50" onClick={() => { setEditingTestId(test.id); setNewTest({ title: test.title, subject: test.subject, duration: test.duration, accessCode: test.accessCode || '', questions: test.questions?.map((q: any) => ({ ...q, imageFiles: [], imagePreviews: [] })) ?? [] }); setTestDuration(String(test.duration)); setTestAccessCode(test.accessCode || ''); setIsEditOpen(true); }}>
+                      <Button variant="ghost" size="sm" className="text-amber-600 hover:bg-amber-50" onClick={() => {
+                        // Map DB questions → UI state (restore type, imagePreviews, scenarioText, subQuestions)
+                        const mappedQuestions = (test.questions || []).map((q: any) => {
+                          // Parse saved imageUrl (stored as JSON array string or plain string)
+                          let savedUrls: string[] = []
+                          try { savedUrls = JSON.parse(q.imageUrl || '[]') } catch { if (q.imageUrl) savedUrls = [q.imageUrl] }
+
+                          if (q.text === '__SCENARIO__') {
+                            // Case Scenario question
+                            let subQs: any[] = []
+                            try { subQs = JSON.parse(q.correctAnswer || '[]') } catch { subQs = [] }
+                            return {
+                              type: 'scenario',
+                              scenarioText: q.hintText || '',
+                              imageUrl: q.imageUrl || '',
+                              imageFiles: [],
+                              imagePreviews: savedUrls,   // show already-uploaded images
+                              subQuestions: subQs.length ? subQs : [{ text: '', correctAnswer: '', hintText: '' }]
+                            }
+                          }
+                          // Standard question
+                          return {
+                            type: 'standard',
+                            text: q.text || '',
+                            correctAnswer: q.correctAnswer || '',
+                            hintText: q.hintText || '',
+                            imageUrl: q.imageUrl || '',
+                            imageFiles: [],
+                            imagePreviews: savedUrls    // show already-uploaded images
+                          }
+                        })
+                        setEditingTestId(test.id)
+                        setNewTest({ title: test.title, subject: test.subject, duration: test.duration, accessCode: test.accessCode || '', questions: mappedQuestions })
+                        setTestDuration(String(test.duration))
+                        setTestAccessCode(test.accessCode || '')
+                        setIsEditOpen(true)
+                      }}>
                         <Pen className="w-4 h-4" />
                       </Button>
                       <Button variant="ghost" size="sm" className="text-rose-600 hover:bg-rose-50" onClick={() => handleDeleteTest(test.id, test.title)}>
