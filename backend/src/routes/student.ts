@@ -64,7 +64,7 @@ router.post('/tests/:id/attempt', async (req, res) => {
     const test = await prisma.test.findUnique({
       where: { id: req.params.id },
       include: {
-        questions: { select: { id: true, imageUrl: true, text: true, hintText: true } },
+        questions: { select: { id: true, imageUrl: true, text: true, hintText: true, answerType: true, options: true, correctAnswer: false } },
         faculty: { select: { name: true } }
       }
     })
@@ -105,11 +105,21 @@ router.post('/attempts/:id/submit', async (req, res) => {
 
     if (!test) return res.status(404).json({ error: 'Test not found' })
 
-    // Calculate score
-    let score = 0
+    // Calculate weighted score (marks-based)
+    let score = 0          // legacy count
+    let scoreFloat = 0     // weighted marks
+    let totalMarks = 0
+
     test.questions.forEach(q => {
-      if (answers[q.id]?.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim()) {
+      const qMarks = q.marks || 1
+      totalMarks += qMarks
+      // Skip scenario questions from auto-scoring (subjective)
+      if (q.answerType === 'scenario') return
+      const studentAns = (answers[q.id] || '').toLowerCase().trim()
+      const correctAns = (q.correctAnswer || '').toLowerCase().trim()
+      if (studentAns === correctAns && correctAns !== '') {
         score++
+        scoreFloat += qMarks
       }
     })
 
@@ -117,14 +127,39 @@ router.post('/attempts/:id/submit', async (req, res) => {
       where: { id: req.params.id },
       data: {
         score,
+        scoreFloat,
+        totalMarks,
+        answers: JSON.stringify(answers),
         status: 'COMPLETED',
         submittedAt: new Date()
       }
     })
 
-    res.json({ attempt: updatedAttempt, totalQuestions: test.questions.length })
+    res.json({ attempt: updatedAttempt, totalQuestions: test.questions.length, scoreFloat, totalMarks })
   } catch (err) {
     res.status(500).json({ error: 'Failed to submit attempt' })
+  }
+})
+
+// Get attempt result (for Result page)
+router.get('/attempts/:id', async (req, res) => {
+  try {
+    const attempt = await prisma.attempt.findUnique({
+      where: { id: req.params.id },
+      include: {
+        test: {
+          include: {
+            questions: {
+              select: { id: true, text: true, answerType: true, correctAnswer: true, hintText: true, imageUrl: true, options: true, marks: true }
+            }
+          }
+        }
+      }
+    })
+    if (!attempt) return res.status(404).json({ error: 'Attempt not found' })
+    res.json(attempt)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch attempt' })
   }
 })
 

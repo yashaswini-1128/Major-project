@@ -476,15 +476,74 @@ export default function Assessment() {
                   </div>
                 ) : (
                   <>
-                    <Input 
-                      value={answer}
-                      onChange={e => setAnswer(e.target.value)}
-                      placeholder="Enter the appropriate test identification..."
-                      className="text-lg py-7 px-4 rounded-xl border-slate-200 focus-visible:ring-teal-600 shadow-sm"
-                      required
-                    />
-                    
-                    {showHint && (
+                    {/* Marks badge */}
+                    {currentQ.marks && currentQ.marks > 1 && (
+                      <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-full w-fit">
+                        <span>⭐ {currentQ.marks} Marks</span>
+                      </div>
+                    )}
+
+                    {currentQ.answerType === 'options' ? (
+                      /* MCQ: render radio-button style option cards */
+                      <div className="space-y-3">
+                        {(() => {
+                          let opts: any[] = []
+                          try { opts = JSON.parse(currentQ.options || '[]') } catch { opts = [] }
+                          return opts.map((opt: any) => (
+                            <button
+                              key={opt.label}
+                              type="button"
+                              onClick={() => setAnswer(opt.label)}
+                              className={`w-full flex items-center gap-4 px-5 py-4 rounded-xl border-2 text-left transition-all font-medium ${
+                                answer === opt.label
+                                  ? 'border-violet-500 bg-violet-50 text-violet-900 shadow-md shadow-violet-100'
+                                  : 'border-slate-200 bg-white text-slate-700 hover:border-violet-300 hover:bg-violet-50/30'
+                              }`}
+                            >
+                              <span className={`w-8 h-8 rounded-full font-bold text-sm flex items-center justify-center shrink-0 ${
+                                answer === opt.label ? 'bg-violet-500 text-white' : 'bg-slate-100 text-slate-600'
+                              }`}>{opt.label}</span>
+                              <span>{opt.text}</span>
+                            </button>
+                          ))
+                        })()}
+                      </div>
+                    ) : currentQ.answerType === 'scenario' ? (
+                      /* Scenario: render sub-question inputs */
+                      <div className="space-y-4">
+                        {(() => {
+                          let subQs: any[] = []
+                          try { subQs = JSON.parse(currentQ.correctAnswer || '[]') } catch { subQs = [] }
+                          const currentAnswers = (() => { try { return JSON.parse(answer || '{}') } catch { return {} } })()
+                          return subQs.map((sq: any, si: number) => (
+                            <div key={si} className="space-y-2">
+                              <p className="text-sm font-semibold text-slate-700">{si + 1}. {sq.text}</p>
+                              <textarea
+                                rows={2}
+                                placeholder="Your answer..."
+                                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
+                                value={currentAnswers[si] || ''}
+                                onChange={e => {
+                                  const updated = { ...currentAnswers, [si]: e.target.value }
+                                  setAnswer(JSON.stringify(updated))
+                                }}
+                              />
+                            </div>
+                          ))
+                        })()}
+                      </div>
+                    ) : (
+                      /* Typed answer */
+                      <Input
+                        value={answer}
+                        onChange={e => setAnswer(e.target.value)}
+                        placeholder="Enter the appropriate test identification..."
+                        className="text-lg py-7 px-4 rounded-xl border-slate-200 focus-visible:ring-teal-600 shadow-sm"
+                        required
+                      />
+                    )}
+
+                    {showHint && currentQ.hintText && (
                       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 animate-in fade-in slide-in-from-top-2">
                         <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5 animate-pulse" />
                         <div>

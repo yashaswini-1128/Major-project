@@ -32,13 +32,16 @@ model Test {
 }
 
 model Question {
-  id            String @id @default(uuid())
+  id            String  @id @default(uuid())
   testId        String
-  test          Test   @relation(fields: [testId], references: [id])
-  imageUrl      String
-  text          String
-  correctAnswer String
+  test          Test    @relation(fields: [testId], references: [id])
+  imageUrl      String  @default("")   // JSON array string of image URLs
+  text          String  @default("")
+  correctAnswer String  @default("")
   hintText      String?
+  answerType    String  @default("typed")   // "typed" | "options" | "scenario"
+  options       String?                      // JSON array of {label,text} for MCQ
+  marks         Float   @default(1)          // marks allocated to this question
 }
 
 model Attempt {
@@ -47,7 +50,10 @@ model Attempt {
   student           User            @relation(fields: [studentId], references: [id])
   testId            String
   test              Test            @relation(fields: [testId], references: [id])
-  score             Int?
+  score             Int?            // legacy: count of correct answers
+  scoreFloat        Float?          // weighted marks scored
+  totalMarks        Float?          // total marks of the test at time of attempt
+  answers           String?         // JSON: Record<questionId, string>
   status            String          @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, TERMINATED
   terminationReason String?
   startedAt         DateTime        @default(now())

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/useAuthStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Users, FileText, Settings, LogOut, CheckCircle, XCircle, LayoutDashboard, Download, BookOpen, Activity, Plus, Trash2, ImagePlus, Pen } from 'lucide-react'
+import { Users, FileText, Settings, LogOut, CheckCircle, XCircle, LayoutDashboard, Download, BookOpen, Activity, Plus, Trash2, ImagePlus, Pen, BarChart2, Award } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
@@ -30,6 +30,8 @@ export default function FacultyDashboard() {
   // Editing state for assessments
   const [editingTestId, setEditingTestId] = useState<string | null>(null)
   const [isEditOpen, setIsEditOpen] = useState(false)
+  // Scores
+  const [scoresModal, setScoresModal] = useState<{ open: boolean; testTitle: string; attempts: any[]; totalMarks: number }>({ open: false, testTitle: '', attempts: [], totalMarks: 0 })
 
   // Helper to build blank question
   const blankQuestion = () => ({ text: '', correctAnswer: '', hintText: '', imageUrl: '', imageFiles: [] as File[], imagePreviews: [] as string[] })
@@ -56,6 +58,18 @@ export default function FacultyDashboard() {
     } catch (err) {
       console.error(err)
       toast.error('Failed to load dashboard data')
+    }
+  }
+
+  const fetchScores = async (testId: string, testTitle: string) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/faculty/tests/${testId}/scores`, {
+        headers: { 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      setScoresModal({ open: true, testTitle, attempts: data.attempts || [], totalMarks: data.totalMarks || 0 })
+    } catch {
+      toast.error('Failed to load scores')
     }
   }
 
@@ -165,24 +179,37 @@ export default function FacultyDashboard() {
           imageUrl = JSON.stringify(urls);
         }
 
-        if (q.type === 'scenario') {
+        const qtype = q.type || q.answerType || 'typed';
+        const marks = q.marks ?? 1;
+
+        if (qtype === 'scenario') {
           return {
-            type: 'scenario',
+            type: 'scenario', answerType: 'scenario',
             scenarioText: q.scenarioText || '',
             imageUrl,
             subQuestions: q.subQuestions || [],
-            // keep these blank so DB schema stays happy
-            text: '',
-            correctAnswer: '',
-            hintText: ''
+            marks,
+            text: '', correctAnswer: '', hintText: ''
+          };
+        }
+        if (qtype === 'options') {
+          return {
+            type: 'options', answerType: 'options',
+            text: q.text || '',
+            correctAnswer: q.correctAnswer || '',
+            hintText: q.hintText || '',
+            options: q.options || [],
+            imageUrl,
+            marks
           };
         }
         return {
-          type: 'standard',
-          text: q.text,
-          correctAnswer: q.correctAnswer,
-          hintText: q.hintText,
-          imageUrl
+          type: 'typed', answerType: 'typed',
+          text: q.text || '',
+          correctAnswer: q.correctAnswer || '',
+          hintText: q.hintText || '',
+          imageUrl,
+          marks
         };
       }));
 
@@ -235,24 +262,15 @@ export default function FacultyDashboard() {
           }));
           imageUrl = JSON.stringify(urls);
         }
-        if (q.type === 'scenario') {
-          return {
-            type: 'scenario',
-            scenarioText: q.scenarioText || '',
-            imageUrl,
-            subQuestions: q.subQuestions || [],
-            text: '',
-            correctAnswer: '',
-            hintText: ''
-          };
+        const qtype = q.type || q.answerType || 'typed';
+        const marks = q.marks ?? 1;
+        if (qtype === 'scenario') {
+          return { type: 'scenario', answerType: 'scenario', scenarioText: q.scenarioText || '', imageUrl, subQuestions: q.subQuestions || [], marks, text: '', correctAnswer: '', hintText: '' };
         }
-        return {
-          type: 'standard',
-          text: q.text,
-          correctAnswer: q.correctAnswer,
-          hintText: q.hintText,
-          imageUrl
-        };
+        if (qtype === 'options') {
+          return { type: 'options', answerType: 'options', text: q.text || '', correctAnswer: q.correctAnswer || '', hintText: q.hintText || '', options: q.options || [], imageUrl, marks };
+        }
+        return { type: 'typed', answerType: 'typed', text: q.text || '', correctAnswer: q.correctAnswer || '', hintText: q.hintText || '', imageUrl, marks };
       }));
       const res = await fetch(`http://localhost:5000/api/faculty/tests/${editingTestId}`, {
         method: 'PUT',
@@ -599,218 +617,131 @@ export default function FacultyDashboard() {
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <Label className="text-slate-900 font-bold text-lg">Questions ({newTest.questions.length})</Label>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setNewTest({...newTest, questions: [...newTest.questions, { type: 'standard', text: '', correctAnswer: '', hintText: '', imageUrl: '', imageFiles: [], imagePreviews: [] }]})}
-                          >
-                            <Plus className="w-4 h-4 mr-1" /> Standard
+                        <div className="flex gap-2 flex-wrap">
+                          <Button variant="outline" size="sm"
+                            onClick={() => setNewTest({...newTest, questions: [...newTest.questions, { type: 'typed', answerType: 'typed', text: '', correctAnswer: '', hintText: '', imageUrl: '', imageFiles: [], imagePreviews: [] }]})}>
+                            <Plus className="w-4 h-4 mr-1" /> Typed Answer
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="border-teal-300 text-teal-700 hover:bg-teal-50"
-                            onClick={() => setNewTest({...newTest, questions: [...newTest.questions, { type: 'scenario', scenarioText: '', imageFiles: [], imagePreviews: [], imageUrl: '', subQuestions: [{ text: '', correctAnswer: '', hintText: '' }] }]})}
-                          >
+                          <Button variant="outline" size="sm" className="border-violet-300 text-violet-700 hover:bg-violet-50"
+                            onClick={() => setNewTest({...newTest, questions: [...newTest.questions, { type: 'options', answerType: 'options', text: '', correctAnswer: '', hintText: '', imageUrl: '', imageFiles: [], imagePreviews: [], options: [{label:'A',text:''},{label:'B',text:''},{label:'C',text:''},{label:'D',text:''}] }]})}>
+                            <Plus className="w-4 h-4 mr-1" /> MCQ Options
+                          </Button>
+                          <Button variant="outline" size="sm" className="border-teal-300 text-teal-700 hover:bg-teal-50"
+                            onClick={() => setNewTest({...newTest, questions: [...newTest.questions, { type: 'scenario', answerType: 'scenario', scenarioText: '', imageFiles: [], imagePreviews: [], imageUrl: '', subQuestions: [{ text: '', correctAnswer: '', hintText: '' }] }]})}>
                             <Plus className="w-4 h-4 mr-1" /> Case Scenario
                           </Button>
                         </div>
                       </div>
 
-                      {newTest.questions.map((q, index) => (
-                        <div key={index} className={`p-4 border rounded-xl space-y-4 relative ${ q.type === 'scenario' ? 'border-teal-200 bg-teal-50/40' : 'border-slate-200 bg-slate-50' }`}>
+                      {newTest.questions.map((q, index) => {
+                        const qtype = q.type || q.answerType || 'typed'
+                        const borderCls = qtype === 'scenario' ? 'border-teal-200 bg-teal-50/40' : qtype === 'options' ? 'border-violet-200 bg-violet-50/30' : 'border-slate-200 bg-slate-50'
+                        const badgeCls = qtype === 'scenario' ? 'bg-teal-100 text-teal-700' : qtype === 'options' ? 'bg-violet-100 text-violet-700' : 'bg-slate-200 text-slate-600'
+                        const badgeLabel = qtype === 'scenario' ? '📋 Case Scenario' : qtype === 'options' ? '🔘 MCQ Options' : '✏️ Typed Answer'
+                        return (
+                        <div key={index} className={`p-4 border rounded-xl space-y-4 relative ${borderCls}`}>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${ q.type === 'scenario' ? 'bg-teal-100 text-teal-700' : 'bg-slate-200 text-slate-600' }`}>
-                                {q.type === 'scenario' ? '📋 Case Scenario' : '❓ Standard'}
-                              </span>
+                              <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${badgeCls}`}>{badgeLabel}</span>
                               <p className="font-bold text-slate-700 text-sm">#{index + 1}</p>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                              onClick={() => setNewTest({...newTest, questions: newTest.questions.filter((_, i) => i !== index)})}
-                            >
+                            <Button variant="ghost" size="icon" className="text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                              onClick={() => setNewTest({...newTest, questions: newTest.questions.filter((_, i) => i !== index)})}>
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
+                            {/* Marks per question */}
+                            <div className="flex items-center gap-3 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                              <Label className="text-amber-700 font-semibold text-xs uppercase tracking-wider shrink-0">Marks:</Label>
+                              <Input type="number" min="0.5" step="0.5" className="w-20 h-7 text-sm font-bold text-center border-amber-200 bg-white" value={q.marks ?? 1} onChange={e => { const qs = [...newTest.questions]; qs[index].marks = parseFloat(e.target.value) || 1; setNewTest({...newTest, questions: qs}); }} />
+                            </div>
 
-                          {q.type === 'scenario' ? (
+                          {qtype === 'scenario' ? (
                             <>
-                              {/* Scenario Description */}
                               <div className="space-y-1">
                                 <Label className="text-slate-700 font-medium text-sm">Case Scenario Description</Label>
-                                <textarea
-                                  rows={4}
-                                  placeholder="e.g. A 40 year old male patient came with history of white patches on the tongue & buccal cavity..."
-                                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
-                                  value={q.scenarioText || ''}
-                                  onChange={e => {
-                                    const qs = [...newTest.questions]; qs[index].scenarioText = e.target.value; setNewTest({...newTest, questions: qs});
-                                  }}
-                                />
+                                <textarea rows={4} placeholder="e.g. A 40 year old HIV+ patient presented with white patches..." className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none" value={q.scenarioText || ''} onChange={e => { const qs = [...newTest.questions]; qs[index].scenarioText = e.target.value; setNewTest({...newTest, questions: qs}); }} />
                               </div>
-
-                              {/* Scenario Images */}
                               <div className="space-y-2">
                                 <Label className="text-slate-600 text-xs font-semibold uppercase tracking-wider">Scenario Specimen Images</Label>
                                 <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-teal-300 rounded-xl bg-white hover:bg-teal-50 cursor-pointer transition-colors">
                                   <span className="text-sm text-teal-600 font-medium">Click to attach images</span>
                                   <span className="text-xs text-teal-400 mt-0.5">Clinical photos, microscopy, culture media, etc.</span>
-                                  <input type="file" accept="image/*" multiple className="hidden" onChange={e => {
-                                    const files = Array.from(e.target.files || []);
-                                    if (files.length === 0) return;
-                                    const previews = files.map(f => URL.createObjectURL(f));
-                                    const qs = [...newTest.questions];
-                                    qs[index].imageFiles = [...(qs[index].imageFiles || []), ...files];
-                                    qs[index].imagePreviews = [...(qs[index].imagePreviews || []), ...previews];
-                                    setNewTest({...newTest, questions: qs});
-                                    e.target.value = '';
-                                  }} />
+                                  <input type="file" accept="image/*" multiple className="hidden" onChange={e => { const files = Array.from(e.target.files || []); if (!files.length) return; const previews = files.map(f => URL.createObjectURL(f)); const qs = [...newTest.questions]; qs[index].imageFiles = [...(qs[index].imageFiles || []), ...files]; qs[index].imagePreviews = [...(qs[index].imagePreviews || []), ...previews]; setNewTest({...newTest, questions: qs}); e.target.value = ''; }} />
                                 </label>
-                                {q.imagePreviews && q.imagePreviews.length > 0 && (
-                                  <div className="grid grid-cols-4 gap-2">
-                                    {q.imagePreviews.map((src: string, imgIdx: number) => (
-                                      <div key={imgIdx} className="relative group rounded-lg overflow-hidden border border-teal-200 aspect-square">
-                                        <img src={src} alt={`scenario-img-${imgIdx}`} className="w-full h-full object-cover" />
-                                        <button type="button" className="absolute top-1 right-1 bg-rose-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
-                                          const qs = [...newTest.questions];
-                                          qs[index].imageFiles = qs[index].imageFiles.filter((_: any, i: number) => i !== imgIdx);
-                                          qs[index].imagePreviews = qs[index].imagePreviews.filter((_: any, i: number) => i !== imgIdx);
-                                          setNewTest({...newTest, questions: qs});
-                                        }}>×</button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
+                                {q.imagePreviews && q.imagePreviews.length > 0 && (<div className="grid grid-cols-4 gap-2">{q.imagePreviews.map((src: string, imgIdx: number) => (<div key={imgIdx} className="relative group rounded-lg overflow-hidden border border-teal-200 aspect-square"><img src={src} alt="" className="w-full h-full object-cover" /><button type="button" className="absolute top-1 right-1 bg-rose-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { const qs = [...newTest.questions]; qs[index].imageFiles = qs[index].imageFiles.filter((_: any, i: number) => i !== imgIdx); qs[index].imagePreviews = qs[index].imagePreviews.filter((_: any, i: number) => i !== imgIdx); setNewTest({...newTest, questions: qs}); }}>&times;</button></div>))}</div>)}
                               </div>
-
-                              {/* Sub-Questions */}
                               <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                   <Label className="text-slate-700 font-semibold text-sm">Sub-Questions ({(q.subQuestions || []).length})</Label>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="text-teal-700 border-teal-300 hover:bg-teal-50 h-7 text-xs"
-                                    onClick={() => {
-                                      const qs = [...newTest.questions];
-                                      qs[index].subQuestions = [...(qs[index].subQuestions || []), { text: '', correctAnswer: '', hintText: '' }];
-                                      setNewTest({...newTest, questions: qs});
-                                    }}
-                                  >
+                                  <Button variant="outline" size="sm" className="text-teal-700 border-teal-300 hover:bg-teal-50 h-7 text-xs" onClick={() => { const qs = [...newTest.questions]; qs[index].subQuestions = [...(qs[index].subQuestions || []), { text: '', correctAnswer: '', hintText: '' }]; setNewTest({...newTest, questions: qs}); }}>
                                     <Plus className="w-3 h-3 mr-1" /> Add Sub-question
                                   </Button>
                                 </div>
                                 {(q.subQuestions || []).map((sq: any, sqIdx: number) => (
                                   <div key={sqIdx} className="bg-white border border-teal-100 rounded-lg p-3 space-y-2">
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-xs font-bold text-teal-600">{sqIdx + 1}.</span>
-                                      <button type="button" className="text-rose-400 hover:text-rose-600 text-xs" onClick={() => {
-                                        const qs = [...newTest.questions];
-                                        qs[index].subQuestions = qs[index].subQuestions.filter((_: any, si: number) => si !== sqIdx);
-                                        setNewTest({...newTest, questions: qs});
-                                      }}>Remove</button>
-                                    </div>
-                                    <Input
-                                      placeholder={`Sub-question ${sqIdx + 1} text`}
-                                      value={sq.text}
-                                      onChange={e => {
-                                        const qs = [...newTest.questions];
-                                        qs[index].subQuestions[sqIdx].text = e.target.value;
-                                        setNewTest({...newTest, questions: qs});
-                                      }}
-                                    />
+                                    <div className="flex items-center justify-between"><span className="text-xs font-bold text-teal-600">{sqIdx + 1}.</span><button type="button" className="text-rose-400 hover:text-rose-600 text-xs" onClick={() => { const qs = [...newTest.questions]; qs[index].subQuestions = qs[index].subQuestions.filter((_: any, si: number) => si !== sqIdx); setNewTest({...newTest, questions: qs}); }}>Remove</button></div>
+                                    <Input placeholder={`Sub-question ${sqIdx + 1} text`} value={sq.text} onChange={e => { const qs = [...newTest.questions]; qs[index].subQuestions[sqIdx].text = e.target.value; setNewTest({...newTest, questions: qs}); }} />
                                     <div className="grid grid-cols-2 gap-2">
-                                      <Input
-                                        placeholder="Expected Answer / Key Points"
-                                        value={sq.correctAnswer}
-                                        onChange={e => {
-                                          const qs = [...newTest.questions];
-                                          qs[index].subQuestions[sqIdx].correctAnswer = e.target.value;
-                                          setNewTest({...newTest, questions: qs});
-                                        }}
-                                      />
-                                      <Input
-                                        placeholder="Hint (optional)"
-                                        value={sq.hintText}
-                                        onChange={e => {
-                                          const qs = [...newTest.questions];
-                                          qs[index].subQuestions[sqIdx].hintText = e.target.value;
-                                          setNewTest({...newTest, questions: qs});
-                                        }}
-                                      />
+                                      <Input placeholder="Expected Answer / Key Points" value={sq.correctAnswer} onChange={e => { const qs = [...newTest.questions]; qs[index].subQuestions[sqIdx].correctAnswer = e.target.value; setNewTest({...newTest, questions: qs}); }} />
+                                      <Input placeholder="Hint (optional)" value={sq.hintText} onChange={e => { const qs = [...newTest.questions]; qs[index].subQuestions[sqIdx].hintText = e.target.value; setNewTest({...newTest, questions: qs}); }} />
                                     </div>
                                   </div>
                                 ))}
                               </div>
                             </>
+                          ) : qtype === 'options' ? (
+                            <>
+                              <Input placeholder="Question Text" value={q.text || ''} onChange={e => { const qs = [...newTest.questions]; qs[index].text = e.target.value; setNewTest({...newTest, questions: qs}); }} />
+                              <div className="space-y-2">
+                                <Label className="text-slate-700 font-medium text-sm">Answer Options (A / B / C / D)</Label>
+                                {(q.options || [{label:'A',text:''},{label:'B',text:''},{label:'C',text:''},{label:'D',text:''}]).map((opt: any, oIdx: number) => (
+                                  <div key={oIdx} className="flex items-center gap-2">
+                                    <span className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 font-bold text-sm flex items-center justify-center shrink-0">{opt.label}</span>
+                                    <Input placeholder={`Option ${opt.label}`} value={opt.text || ''} onChange={e => { const qs = [...newTest.questions]; if (!qs[index].options) qs[index].options = [{label:'A',text:''},{label:'B',text:''},{label:'C',text:''},{label:'D',text:''}]; qs[index].options[oIdx].text = e.target.value; setNewTest({...newTest, questions: qs}); }} />
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                  <Label className="text-slate-700 text-sm font-medium">Correct Answer</Label>
+                                  <select className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400" value={q.correctAnswer || ''} onChange={e => { const qs = [...newTest.questions]; qs[index].correctAnswer = e.target.value; setNewTest({...newTest, questions: qs}); }}>
+                                    <option value="">Select correct option</option>
+                                    <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
+                                  </select>
+                                </div>
+                                <Input placeholder="Hint (optional)" value={q.hintText || ''} onChange={e => { const qs = [...newTest.questions]; qs[index].hintText = e.target.value; setNewTest({...newTest, questions: qs}); }} />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-slate-600 text-xs font-semibold uppercase tracking-wider">Specimen Images (optional)</Label>
+                                <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-violet-300 rounded-xl bg-white hover:bg-violet-50 cursor-pointer transition-colors">
+                                  <span className="text-sm text-violet-600 font-medium">Click to attach images</span>
+                                  <input type="file" accept="image/*" multiple className="hidden" onChange={e => { const files = Array.from(e.target.files || []); if (!files.length) return; const previews = files.map(f => URL.createObjectURL(f)); const qs = [...newTest.questions]; qs[index].imageFiles = [...(qs[index].imageFiles || []), ...files]; qs[index].imagePreviews = [...(qs[index].imagePreviews || []), ...previews]; setNewTest({...newTest, questions: qs}); e.target.value = ''; }} />
+                                </label>
+                                {q.imagePreviews && q.imagePreviews.length > 0 && (<div className="grid grid-cols-4 gap-2">{q.imagePreviews.map((src: string, imgIdx: number) => (<div key={imgIdx} className="relative group rounded-lg overflow-hidden border border-violet-200 aspect-square"><img src={src} alt="" className="w-full h-full object-cover" /><button type="button" className="absolute top-1 right-1 bg-rose-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { const qs = [...newTest.questions]; qs[index].imageFiles = qs[index].imageFiles.filter((_: any, i: number) => i !== imgIdx); qs[index].imagePreviews = qs[index].imagePreviews.filter((_: any, i: number) => i !== imgIdx); setNewTest({...newTest, questions: qs}); }}>&times;</button></div>))}</div>)}
+                            </div>
+                            </>
                           ) : (
                             <>
-                              <Input
-                                placeholder="Question Text"
-                                value={q.text}
-                                onChange={e => {
-                                  const qs = [...newTest.questions]; qs[index].text = e.target.value; setNewTest({...newTest, questions: qs});
-                                }}
-                              />
+                              <Input placeholder="Question Text" value={q.text || ''} onChange={e => { const qs = [...newTest.questions]; qs[index].text = e.target.value; setNewTest({...newTest, questions: qs}); }} />
                               <div className="grid grid-cols-2 gap-4">
-                                <Input
-                                  placeholder="Correct Answer"
-                                  value={q.correctAnswer}
-                                  onChange={e => {
-                                    const qs = [...newTest.questions]; qs[index].correctAnswer = e.target.value; setNewTest({...newTest, questions: qs});
-                                  }}
-                                />
-                                <Input
-                                  placeholder="Hint (optional)"
-                                  value={q.hintText}
-                                  onChange={e => {
-                                    const qs = [...newTest.questions]; qs[index].hintText = e.target.value; setNewTest({...newTest, questions: qs});
-                                  }}
-                                />
+                                <Input placeholder="Correct Answer" value={q.correctAnswer || ''} onChange={e => { const qs = [...newTest.questions]; qs[index].correctAnswer = e.target.value; setNewTest({...newTest, questions: qs}); }} />
+                                <Input placeholder="Hint (optional)" value={q.hintText || ''} onChange={e => { const qs = [...newTest.questions]; qs[index].hintText = e.target.value; setNewTest({...newTest, questions: qs}); }} />
                               </div>
-                              <div className="space-y-3">
-                                <Label className="text-slate-600 text-xs font-semibold uppercase tracking-wider">Specimen Images</Label>
+                              <div className="space-y-2">
+                                <Label className="text-slate-600 text-xs font-semibold uppercase tracking-wider">Specimen Images (optional)</Label>
                                 <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors">
                                   <span className="text-sm text-slate-500 font-medium">Click to select images</span>
                                   <span className="text-xs text-slate-400 mt-1">Multiple files allowed</span>
-                                  <input type="file" accept="image/*" multiple className="hidden" onChange={e => {
-                                    const files = Array.from(e.target.files || []);
-                                    if (files.length === 0) return;
-                                    const previews = files.map(f => URL.createObjectURL(f));
-                                    const qs = [...newTest.questions];
-                                    qs[index].imageFiles = [...(qs[index].imageFiles || []), ...files];
-                                    qs[index].imagePreviews = [...(qs[index].imagePreviews || []), ...previews];
-                                    setNewTest({...newTest, questions: qs});
-                                    e.target.value = '';
-                                  }} />
+                                  <input type="file" accept="image/*" multiple className="hidden" onChange={e => { const files = Array.from(e.target.files || []); if (!files.length) return; const previews = files.map(f => URL.createObjectURL(f)); const qs = [...newTest.questions]; qs[index].imageFiles = [...(qs[index].imageFiles || []), ...files]; qs[index].imagePreviews = [...(qs[index].imagePreviews || []), ...previews]; setNewTest({...newTest, questions: qs}); e.target.value = ''; }} />
                                 </label>
-                                {q.imagePreviews && q.imagePreviews.length > 0 && (
-                                  <div className="grid grid-cols-4 gap-2">
-                                    {q.imagePreviews.map((src: string, imgIdx: number) => (
-                                      <div key={imgIdx} className="relative group rounded-lg overflow-hidden border border-slate-200 aspect-square">
-                                        <img src={src} alt={`img-${imgIdx}`} className="w-full h-full object-cover" />
-                                        <button type="button" className="absolute top-1 right-1 bg-rose-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
-                                          const qs = [...newTest.questions];
-                                          qs[index].imageFiles = qs[index].imageFiles.filter((_: any, i: number) => i !== imgIdx);
-                                          qs[index].imagePreviews = qs[index].imagePreviews.filter((_: any, i: number) => i !== imgIdx);
-                                          setNewTest({...newTest, questions: qs});
-                                        }}>×</button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                {q.imagePreviews && q.imagePreviews.length > 0 && (
-                                  <p className="text-xs text-emerald-600 font-medium">{q.imagePreviews.length} image{q.imagePreviews.length > 1 ? 's' : ''} selected</p>
-                                )}
+                                {q.imagePreviews && q.imagePreviews.length > 0 && (<div className="grid grid-cols-4 gap-2">{q.imagePreviews.map((src: string, imgIdx: number) => (<div key={imgIdx} className="relative group rounded-lg overflow-hidden border border-slate-200 aspect-square"><img src={src} alt="" className="w-full h-full object-cover" /><button type="button" className="absolute top-1 right-1 bg-rose-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { const qs = [...newTest.questions]; qs[index].imageFiles = qs[index].imageFiles.filter((_: any, i: number) => i !== imgIdx); qs[index].imagePreviews = qs[index].imagePreviews.filter((_: any, i: number) => i !== imgIdx); setNewTest({...newTest, questions: qs}); }}>&times;</button></div>))}</div>)}
                               </div>
                             </>
                           )}
                         </div>
-                      ))}
+                        )}
+                      )}
                     </div>
                   </div>
                   <DialogFooter>
@@ -852,12 +783,14 @@ export default function FacultyDashboard() {
                     </Button>
                   </div>
                 </div>
-                {newTest.questions.map((q, index) => (
-                  <div key={index} className={`p-4 border rounded-xl space-y-4 ${ q.type === 'scenario' ? 'border-teal-200 bg-teal-50/40' : 'border-slate-200 bg-slate-50' }`}>
+                {newTest.questions.map((q, index) => {
+                  const qtype = q.type || q.answerType || 'typed'
+                  return (
+                  <div key={index} className={`p-4 border rounded-xl space-y-4 ${ qtype === 'scenario' ? 'border-teal-200 bg-teal-50/40' : qtype === 'options' ? 'border-violet-200 bg-violet-50/30' : 'border-slate-200 bg-slate-50' }`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${ q.type === 'scenario' ? 'bg-teal-100 text-teal-700' : 'bg-slate-200 text-slate-600' }`}>
-                          {q.type === 'scenario' ? '📋 Case Scenario' : '❓ Standard'}
+                        <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${ qtype === 'scenario' ? 'bg-teal-100 text-teal-700' : qtype === 'options' ? 'bg-violet-100 text-violet-700' : 'bg-slate-200 text-slate-600' }`}>
+                          {qtype === 'scenario' ? '📋 Case Scenario' : qtype === 'options' ? '🔘 MCQ Options' : '✏️ Typed Answer'}
                         </span>
                         <p className="font-bold text-slate-700 text-sm">#{index + 1}</p>
                       </div>
@@ -865,7 +798,12 @@ export default function FacultyDashboard() {
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
-                    {q.type === 'scenario' ? (
+                    {/* Marks per question */}
+                    <div className="flex items-center gap-3 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                      <Label className="text-amber-700 font-semibold text-xs uppercase tracking-wider shrink-0">Marks:</Label>
+                      <Input type="number" min="0.5" step="0.5" className="w-20 h-7 text-sm font-bold text-center border-amber-200 bg-white" value={q.marks ?? 1} onChange={e => { const qs = [...newTest.questions]; qs[index].marks = parseFloat(e.target.value) || 1; setNewTest({ ...newTest, questions: qs }); }} />
+                    </div>
+                    {qtype === 'scenario' ? (
                       <>
                         <div className="space-y-1">
                           <Label className="text-slate-700 font-medium text-sm">Case Scenario Description</Label>
@@ -956,35 +894,21 @@ export default function FacultyDashboard() {
                     {/* Action Buttons */}
                     <div className="flex space-x-2">
                       <Button variant="ghost" size="sm" className="text-amber-600 hover:bg-amber-50" onClick={() => {
-                        // Map DB questions → UI state (restore type, imagePreviews, scenarioText, subQuestions)
                         const mappedQuestions = (test.questions || []).map((q: any) => {
-                          // Parse saved imageUrl (stored as JSON array string or plain string)
                           let savedUrls: string[] = []
                           try { savedUrls = JSON.parse(q.imageUrl || '[]') } catch { if (q.imageUrl) savedUrls = [q.imageUrl] }
-
-                          if (q.text === '__SCENARIO__') {
-                            // Case Scenario question
+                          const at = q.answerType || 'typed'
+                          if (at === 'scenario') {
                             let subQs: any[] = []
                             try { subQs = JSON.parse(q.correctAnswer || '[]') } catch { subQs = [] }
-                            return {
-                              type: 'scenario',
-                              scenarioText: q.hintText || '',
-                              imageUrl: q.imageUrl || '',
-                              imageFiles: [],
-                              imagePreviews: savedUrls,   // show already-uploaded images
-                              subQuestions: subQs.length ? subQs : [{ text: '', correctAnswer: '', hintText: '' }]
-                            }
+                            return { type: 'scenario', answerType: 'scenario', scenarioText: q.text || '', imageUrl: q.imageUrl || '', imageFiles: [], imagePreviews: savedUrls, subQuestions: subQs.length ? subQs : [{ text: '', correctAnswer: '', hintText: '' }] }
                           }
-                          // Standard question
-                          return {
-                            type: 'standard',
-                            text: q.text || '',
-                            correctAnswer: q.correctAnswer || '',
-                            hintText: q.hintText || '',
-                            imageUrl: q.imageUrl || '',
-                            imageFiles: [],
-                            imagePreviews: savedUrls    // show already-uploaded images
+                          if (at === 'options') {
+                            let opts: any[] = [{label:'A',text:''},{label:'B',text:''},{label:'C',text:''},{label:'D',text:''}]
+                            try { opts = JSON.parse(q.options || '[]') } catch {}
+                            return { type: 'options', answerType: 'options', text: q.text || '', correctAnswer: q.correctAnswer || '', hintText: q.hintText || '', imageUrl: q.imageUrl || '', imageFiles: [], imagePreviews: savedUrls, options: opts }
                           }
+                          return { type: 'typed', answerType: 'typed', text: q.text || '', correctAnswer: q.correctAnswer || '', hintText: q.hintText || '', imageUrl: q.imageUrl || '', imageFiles: [], imagePreviews: savedUrls }
                         })
                         setEditingTestId(test.id)
                         setNewTest({ title: test.title, subject: test.subject, duration: test.duration, accessCode: test.accessCode || '', questions: mappedQuestions })
@@ -993,6 +917,9 @@ export default function FacultyDashboard() {
                         setIsEditOpen(true)
                       }}>
                         <Pen className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="text-indigo-600 hover:bg-indigo-50" title="View Student Scores" onClick={() => fetchScores(test.id, test.title)}>
+                        <BarChart2 className="w-4 h-4" />
                       </Button>
                       <Button variant="ghost" size="sm" className="text-rose-600 hover:bg-rose-50" onClick={() => handleDeleteTest(test.id, test.title)}>
                         <Trash2 className="w-4 h-4" />
@@ -1093,6 +1020,89 @@ export default function FacultyDashboard() {
           </div>
         )}
       </div>
+
+      {/* ===== Student Scores Modal ===== */}
+      <Dialog open={scoresModal.open} onOpenChange={open => setScoresModal(s => ({ ...s, open }))}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto rounded-xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="bg-indigo-50 p-2 rounded-lg"><BarChart2 className="w-5 h-5 text-indigo-600" /></div>
+              <div>
+                <DialogTitle className="text-xl">Student Scores</DialogTitle>
+                <DialogDescription>{scoresModal.testTitle} · Total Marks: <strong>{scoresModal.totalMarks}</strong></DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          {scoresModal.attempts.length === 0 ? (
+            <div className="text-center py-12">
+              <Award className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-400 font-medium">No submissions yet for this assessment.</p>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-2">
+              {/* Header */}
+              <div className="grid grid-cols-5 gap-2 px-3 py-2 bg-slate-50 rounded-lg text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <span className="col-span-2">Student</span>
+                <span className="text-center">Marks</span>
+                <span className="text-center">Percentage</span>
+                <span className="text-center">Grade</span>
+              </div>
+              {scoresModal.attempts.map((attempt: any, i: number) => {
+                const scored = attempt.scoreFloat ?? attempt.score ?? 0
+                const total = attempt.totalMarks ?? scoresModal.totalMarks ?? 0
+                const pct = total > 0 ? (scored / total) * 100 : 0
+                const grade = pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B' : pct >= 60 ? 'C' : pct >= 50 ? 'D' : 'F'
+                const gradeColor = pct >= 80 ? 'bg-emerald-100 text-emerald-700' : pct >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
+                return (
+                  <div key={attempt.id} className={`grid grid-cols-5 gap-2 px-3 py-3 rounded-xl border items-center ${i % 2 === 0 ? 'bg-white border-slate-100' : 'bg-slate-50/50 border-transparent'}`}>
+                    <div className="col-span-2">
+                      <p className="font-semibold text-slate-800 text-sm">{attempt.student?.name || 'Unknown'}</p>
+                      <p className="text-xs text-slate-400">{attempt.student?.email}</p>
+                      {attempt.submittedAt && <p className="text-xs text-slate-300 mt-0.5">{new Date(attempt.submittedAt).toLocaleString()}</p>}
+                    </div>
+                    <div className="text-center">
+                      <p className="font-bold text-slate-800">{scored}</p>
+                      <p className="text-xs text-slate-400">/ {total}</p>
+                    </div>
+                    <div className="text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <p className="font-bold text-slate-700">{pct.toFixed(1)}%</p>
+                        <div className="w-full bg-slate-200 rounded-full h-1.5">
+                          <div className="h-1.5 rounded-full bg-teal-500 transition-all" style={{ width: `${Math.min(pct, 100)}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${gradeColor}`}>{grade}</span>
+                    </div>
+                  </div>
+                )
+              })}
+              {/* Summary stats */}
+              <div className="mt-4 grid grid-cols-3 gap-3 pt-4 border-t border-slate-100">
+                {(() => {
+                  const scores = scoresModal.attempts.map((a: any) => {
+                    const s = a.scoreFloat ?? a.score ?? 0
+                    const t = a.totalMarks ?? scoresModal.totalMarks ?? 1
+                    return t > 0 ? (s / t) * 100 : 0
+                  })
+                  const avg = scores.reduce((a: number, b: number) => a + b, 0) / (scores.length || 1)
+                  const max = Math.max(...scores)
+                  const min = Math.min(...scores)
+                  return <>
+                    <div className="text-center bg-indigo-50 rounded-xl p-3"><p className="text-2xl font-black text-indigo-700">{avg.toFixed(1)}%</p><p className="text-xs text-slate-500 mt-1">Class Average</p></div>
+                    <div className="text-center bg-emerald-50 rounded-xl p-3"><p className="text-2xl font-black text-emerald-700">{max.toFixed(1)}%</p><p className="text-xs text-slate-500 mt-1">Highest Score</p></div>
+                    <div className="text-center bg-rose-50 rounded-xl p-3"><p className="text-2xl font-black text-rose-700">{min.toFixed(1)}%</p><p className="text-xs text-slate-500 mt-1">Lowest Score</p></div>
+                  </>
+                })()}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScoresModal(s => ({ ...s, open: false }))}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

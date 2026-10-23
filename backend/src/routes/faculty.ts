@@ -116,21 +116,39 @@ router.put('/tests/:id/status', async (req, res) => {
   }
 })
 
-// Helper: map a question payload to Prisma Question fields
+// Helper: map a question payload → Prisma Question fields
 function mapQuestion(q: any) {
-  if (q.type === 'scenario') {
+  const marks = Number(q.marks) || 1
+  if (q.type === 'scenario' || q.answerType === 'scenario') {
     return {
+      answerType: 'scenario',
       imageUrl: q.imageUrl || '',
-      text: '__SCENARIO__',          // sentinel so student page knows type
+      text: q.scenarioText || '',
       correctAnswer: JSON.stringify(q.subQuestions || []),
-      hintText: q.scenarioText || null
+      hintText: null,
+      options: null,
+      marks
+    }
+  }
+  if (q.answerType === 'options' || q.type === 'options') {
+    return {
+      answerType: 'options',
+      imageUrl: q.imageUrl || '',
+      text: q.text || '',
+      correctAnswer: q.correctAnswer || '',
+      hintText: q.hintText || null,
+      options: JSON.stringify(q.options || []),
+      marks
     }
   }
   return {
+    answerType: 'typed',
     imageUrl: q.imageUrl || '',
     text: q.text || '',
     correctAnswer: q.correctAnswer || '',
-    hintText: q.hintText || null
+    hintText: q.hintText || null,
+    options: null,
+    marks
   }
 }
 
@@ -243,6 +261,47 @@ router.get('/reports', async (req, res) => {
   }
 })
 
+// Get all student attempt scores for a specific test (Faculty)
+router.get('/tests/:id/scores', async (req, res) => {
+  try {
+    const attempts = await prisma.attempt.findMany({
+      where: { testId: req.params.id, status: 'COMPLETED' },
+      include: {
+        student: { select: { name: true, email: true } }
+      },
+      orderBy: { submittedAt: 'desc' }
+    })
+    // Also get question count & total marks for the test
+    const questions = await prisma.question.findMany({
+      where: { testId: req.params.id },
+      select: { marks: true, answerType: true }
+    })
+    const totalMarks = questions.reduce((s, q) => s + (q.marks || 1), 0)
+    res.json({ attempts, totalMarks })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch scores' })
+  }
+})
+
+// Get student attempt answers detail (Faculty view)
+router.get('/attempts/:id/detail', async (req, res) => {
+  try {
+    const attempt = await prisma.attempt.findUnique({
+      where: { id: req.params.id },
+      include: {
+        student: { select: { name: true, email: true } },
+        test: { include: { questions: true } }
+      }
+    })
+    if (!attempt) return res.status(404).json({ error: 'Attempt not found' })
+    let answers: Record<string,string> = {}
+    try { answers = JSON.parse(attempt.answers || '{}') } catch {}
+    res.json({ attempt, answers })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch attempt detail' })
+  }
+})
+
 // Export reports to Excel
 router.get('/reports/export', async (req, res) => {
   try {
@@ -262,34 +321,33 @@ router.get('/reports/export', async (req, res) => {
       { header: 'Student Email', key: 'email', width: 25 },
       { header: 'Test Title', key: 'title', width: 30 },
       { header: 'Subject', key: 'subject', width: 20 },
-      { header: 'Score', key: 'score', width: 10 },
+      { header: 'Marks Scored', key: 'scoreFloat', width: 14 },
+      { header: 'Total Marks', key: 'totalMarks', width: 14 },
+      { header: 'Percentage', key: 'percent', width: 14 },
       { header: 'Status', key: 'status', width: 15 },
       { header: 'Date', key: 'date', width: 20 },
       { header: 'Termination Reason', key: 'reason', width: 20 },
     ]
 
     attempts.forEach(attempt => {
+      const sf = attempt.scoreFloat ?? attempt.score ?? 0
+      const tm = attempt.totalMarks ?? 0
       worksheet.addRow({
         name: attempt.student.name,
         email: attempt.student.email,
         title: attempt.test.title,
         subject: attempt.test.subject,
-        score: attempt.score,
+        scoreFloat: sf,
+        totalMarks: tm,
+        percent: tm > 0 ? ((sf / tm) * 100).toFixed(1) + '%' : 'N/A',
         status: attempt.status,
         date: attempt.startedAt.toLocaleString(),
         reason: attempt.terminationReason || 'N/A'
       })
     })
 
-    res.setHeader(
-      'Content-Type',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    res.setHeader(
-      'Content-Disposition',
-      'attachment; filename=' + 'student_reports.xlsx'
-    )
-
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', 'attachment; filename=student_reports.xlsx')
     await workbook.xlsx.write(res)
     res.end()
   } catch (err) {
