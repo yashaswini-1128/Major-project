@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  password  String
+  role      String    // "STUDENT" or "FACULTY"
+  isAllowed Boolean   @default(true) // For students, whether they are allowed to take tests
+  attempts  Attempt[]
+  createdTests Test[] @relation("FacultyTests")
+}
+
+model Test {
+  id          String     @id @default(uuid())
+  subject     String
+  title       String
+  enabled     Boolean    @default(true)
+  duration    Int        @default(60)
+  accessCode  String?    // Faculty sets this; students must enter it to start
+  facultyId   String?
+  faculty     User?      @relation("FacultyTests", fields: [facultyId], references: [id])
+  questions   Question[]
+  attempts    Attempt[]
+}
+
+model Question {
+  id            String @id @default(uuid())
+  testId        String
+  test          Test   @relation(fields: [testId], references: [id])
+  imageUrl      String
+  text          String
+  correctAnswer String
+  hintText      String?
+}
+
+model Attempt {
+  id                String          @id @default(uuid())
+  studentId         String
+  student           User            @relation(fields: [studentId], references: [id])
+  testId            String
+  test              Test            @relation(fields: [testId], references: [id])
+  score             Int?
+  status            String          @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, TERMINATED
+  terminationReason String?
+  startedAt         DateTime        @default(now())
+  submittedAt       DateTime?
+  logs              MonitoringLog[]
+}
+
+model MonitoringLog {
+  id        String   @id @default(uuid())
+  attemptId String
+  attempt   Attempt  @relation(fields: [attemptId], references: [id])
+  type      String   // "WEBCAM", "MIC", "LOCATION"
+  event     String   // Description of event
+  timestamp DateTime @default(now())
+}
