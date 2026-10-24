@@ -6,6 +6,10 @@ node_modules/
 .env.local
 .env.*.local
 
+# SQLite (migrated to PostgreSQL)
+*.db
+*.db-journal
+
 # Build outputs
 dist/
 build/

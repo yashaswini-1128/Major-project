@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import API_BASE from '@/lib/api'
 
 export default function FacultyDashboard() {
   const navigate = useNavigate()
@@ -47,9 +48,9 @@ export default function FacultyDashboard() {
   const fetchData = async () => {
     try {
       const [studentsRes, reportsRes, testsRes] = await Promise.all([
-        fetch('http://localhost:5000/api/faculty/students', { headers: { 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` } }),
-        fetch('http://localhost:5000/api/faculty/reports', { headers: { 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` } }),
-        fetch('http://localhost:5000/api/faculty/tests', { headers: { 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` } })
+        fetch(`${API_BASE}/api/faculty/students`, { headers: { 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/api/faculty/reports`, { headers: { 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/api/faculty/tests`, { headers: { 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` } })
       ])
       
       setStudents(await studentsRes.json())
@@ -63,7 +64,7 @@ export default function FacultyDashboard() {
 
   const fetchScores = async (testId: string, testTitle: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/faculty/tests/${testId}/scores`, {
+      const res = await fetch(`${API_BASE}/api/faculty/tests/${testId}/scores`, {
         headers: { 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()
@@ -75,7 +76,7 @@ export default function FacultyDashboard() {
 
   const toggleAccess = async (id: string, currentStatus: boolean) => {
     try {
-      await fetch(`http://localhost:5000/api/faculty/students/${id}/access`, {
+      await fetch(`${API_BASE}/api/faculty/students/${id}/access`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ isAllowed: !currentStatus })
@@ -94,7 +95,7 @@ export default function FacultyDashboard() {
         body.duration = duration
       }
       
-      await fetch(`http://localhost:5000/api/faculty/tests/${id}/status`, {
+      await fetch(`${API_BASE}/api/faculty/tests/${id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(body)
@@ -110,7 +111,7 @@ export default function FacultyDashboard() {
   const handleDeleteStudent = async (id: string, name: string) => {
     if (!window.confirm(`Delete student "${name}"? This cannot be undone.`)) return
     try {
-      const res = await fetch(`http://localhost:5000/api/faculty/students/${id}`, {
+      const res = await fetch(`${API_BASE}/api/faculty/students/${id}`, {
         method: 'DELETE',
         headers: { 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` }
       })
@@ -141,7 +142,7 @@ export default function FacultyDashboard() {
     }
     setAddingStudent(true)
     try {
-      const res = await fetch('http://localhost:5000/api/faculty/students', {
+      const res = await fetch(`${API_BASE}/api/faculty/students`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(newStudent)
@@ -172,7 +173,7 @@ export default function FacultyDashboard() {
           const urls = await Promise.all(q.imageFiles.map(async (file: File) => {
             const formData = new FormData();
             formData.append('image', file);
-            const uploadRes = await fetch('http://localhost:5000/api/upload', { method: 'POST', body: formData });
+            const uploadRes = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: formData });
             const uploadData = await uploadRes.json();
             return uploadData.imageUrl;
           }));
@@ -213,7 +214,7 @@ export default function FacultyDashboard() {
         };
       }));
 
-      const res = await fetch('http://localhost:5000/api/faculty/tests', {
+      const res = await fetch(`${API_BASE}/api/faculty/tests`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json', 
@@ -256,7 +257,7 @@ export default function FacultyDashboard() {
           const urls = await Promise.all(q.imageFiles.map(async (file: File) => {
             const formData = new FormData();
             formData.append('image', file);
-            const uploadRes = await fetch('http://localhost:5000/api/upload', { method: 'POST', body: formData });
+            const uploadRes = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: formData });
             const uploadData = await uploadRes.json();
             return uploadData.imageUrl;
           }));
@@ -272,7 +273,7 @@ export default function FacultyDashboard() {
         }
         return { type: 'typed', answerType: 'typed', text: q.text || '', correctAnswer: q.correctAnswer || '', hintText: q.hintText || '', imageUrl, marks };
       }));
-      const res = await fetch(`http://localhost:5000/api/faculty/tests/${editingTestId}`, {
+      const res = await fetch(`${API_BASE}/api/faculty/tests/${editingTestId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -304,7 +305,7 @@ export default function FacultyDashboard() {
   const handleDeleteTest = async (id: string, title: string) => {
     if (!window.confirm(`Delete assessment "${title}"? This cannot be undone.`)) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/faculty/tests/${id}`, {
+      const res = await fetch(`${API_BASE}/api/faculty/tests/${id}`, {
         method: 'DELETE',
         headers: { 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` }
       });
@@ -524,7 +525,7 @@ export default function FacultyDashboard() {
                 <p className="text-slate-500 mt-1">View student scores and proctoring logs.</p>
               </div>
               <Button asChild className="bg-teal-600 hover:bg-teal-700 text-white rounded-lg px-4 h-10">
-                <a href="http://localhost:5000/api/faculty/reports/export" target="_blank" rel="noreferrer">
+                <a href={`${API_BASE}/api/faculty/reports/export`} target="_blank" rel="noreferrer">
                   <Download className="w-4 h-4 mr-2" /> Export to Excel
                 </a>
               </Button>
@@ -1030,7 +1031,7 @@ export default function FacultyDashboard() {
                       if (selectedTestId) {
                         toggleTestStatus(selectedTestId, false, parseInt(testDuration))
                         // Also save the access code
-                        fetch(`http://localhost:5000/api/faculty/tests/${selectedTestId}/status`, {
+                        fetch(`${API_BASE}/api/faculty/tests/${selectedTestId}/status`, {
                           method: 'PUT',
                           headers: { 'Content-Type': 'application/json', 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` },
                           body: JSON.stringify({ enabled: true, duration: parseInt(testDuration), accessCode: testAccessCode })

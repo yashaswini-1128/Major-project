@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Camera, Mic, MapPin, Image as ImageIcon, HelpCircle, FileCheck, AlertTriangle, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
+import API_BASE from '@/lib/api'
 
 export default function Instruction() {
   const { id } = useParams()
@@ -24,7 +25,7 @@ export default function Instruction() {
     }
     setVerifying(true)
     try {
-      const res = await fetch(`http://localhost:5000/api/student/tests/${id}/verify-code`, {
+      const res = await fetch(`${API_BASE}/api/student/tests/${id}/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-role': 'STUDENT' },
         body: JSON.stringify({ accessCode })

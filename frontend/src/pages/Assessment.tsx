@@ -11,6 +11,7 @@ import { io, Socket } from 'socket.io-client'
 import { Progress } from '@/components/ui/progress'
 import { ProctoringBot } from '@/components/ProctoringBot'
 import { isWithinAllowedArea } from '@/lib/locationConfig'
+import API_BASE from '@/lib/api'
 export default function Assessment() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -61,7 +62,7 @@ export default function Assessment() {
 
     const startAttempt = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/student/tests/${id}/attempt`, {
+        const res = await fetch(`${API_BASE}/api/student/tests/${id}/attempt`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-user-role': 'STUDENT', 'x-user-id': user.id, 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ accessCode })
@@ -85,7 +86,7 @@ export default function Assessment() {
     }
     startAttempt()
 
-    const newSocket = io('http://localhost:5000')
+    const newSocket = io(`${API_BASE}`)
     setSocket(newSocket)
 
     newSocket.on('terminate_attempt', (data) => {
@@ -252,7 +253,7 @@ export default function Assessment() {
     setAiLoading(true)
     setShowAiHint(true)
     try {
-      const res = await fetch('http://localhost:5000/api/student/ai-hint', {
+      const res = await fetch(`${API_BASE}/api/student/ai-hint`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-role': 'STUDENT', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ questionId, studentAnswer: wrongAnswer })
@@ -304,7 +305,7 @@ export default function Assessment() {
   const submitTest = async () => {
     if (!attemptId) return
     try {
-      const res = await fetch(`http://localhost:5000/api/student/attempts/${attemptId}/submit`, {
+      const res = await fetch(`${API_BASE}/api/student/attempts/${attemptId}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-role': 'STUDENT', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ answers: answersRef.current })

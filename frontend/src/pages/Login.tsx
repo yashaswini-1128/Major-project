@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/store/useAuthStore'
 import { AlertCircle, GraduationCap, UserCog, CheckCircle2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import API_BASE from '@/lib/api'
 
 export default function Login() {
   const [searchParams] = useSearchParams()
@@ -40,7 +41,7 @@ export default function Login() {
 
     setLoading(true)
     try {
-      const res = await fetch('http://localhost:5000/api/auth/login', {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -72,7 +73,7 @@ export default function Login() {
 
     setLoading(true)
     try {
-      const res = await fetch('http://localhost:5000/api/auth/student-register', {
+      const res = await fetch(`${API_BASE}/api/auth/student-register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password })
@@ -98,7 +99,7 @@ export default function Login() {
 
     setLoading(true)
     try {
-      const res = await fetch('http://localhost:5000/api/auth/register', {
+      const res = await fetch(`${API_BASE}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password })

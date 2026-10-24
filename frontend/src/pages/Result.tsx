@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { useAuthStore } from '@/store/useAuthStore'
 import { CheckCircle2, XCircle, ChevronDown, ChevronUp, Award, BarChart2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import API_BASE from '@/lib/api'
 
 export default function Result() {
   const { id } = useParams()
@@ -17,7 +18,7 @@ export default function Result() {
   useEffect(() => {
     const fetchResult = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/student/attempts/${id}`, {
+        const res = await fetch(`${API_BASE}/api/student/attempts/${id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         const data = await res.json()

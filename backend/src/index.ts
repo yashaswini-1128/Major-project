@@ -41,7 +41,10 @@ import studentRouter from './routes/student'
 
 export const prisma = new PrismaClient()
 
-app.use(cors())
+app.use(cors({
+  origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL, 'http://localhost:5173'] : '*',
+  credentials: true
+}))
 app.use(express.json())
 
 app.use('/api/auth', authRouter)
@@ -54,14 +57,13 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' })
   }
-  const PORT = process.env.PORT || 5000
-  const imageUrl = `http://localhost:${PORT}/uploads/${req.file.filename}`
+  const host = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`
+  const imageUrl = `${host}/uploads/${req.file.filename}`
   res.json({ imageUrl })
 })
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' })
-})
+app.get('/health', (req, res) => { res.json({ status: 'ok', env: process.env.NODE_ENV }) })
+app.get('/api/health', (req, res) => { res.json({ status: 'ok', env: process.env.NODE_ENV }) })
 
 // WebSocket for Proctoring Logs
 io.on('connection', (socket) => {

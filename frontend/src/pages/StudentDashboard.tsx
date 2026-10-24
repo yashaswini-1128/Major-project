@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useAuthStore } from '@/store/useAuthStore'
 import { Microscope, ArrowRight, Dna, KeyRound, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
+import API_BASE from '@/lib/api'
 
 export default function StudentDashboard() {
   const navigate = useNavigate()
@@ -26,7 +27,7 @@ export default function StudentDashboard() {
 
     const fetchData = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/student/tests', {
+        const res = await fetch(`${API_BASE}/api/student/tests`, {
           headers: { 'x-user-role': 'STUDENT', 'Authorization': `Bearer ${token}` }
         })
         const data = await res.json()
@@ -53,7 +54,7 @@ export default function StudentDashboard() {
     }
     setPwLoading(true)
     try {
-      const res = await fetch('http://localhost:5000/api/student/change-password', {
+      const res = await fetch(`${API_BASE}/api/student/change-password`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
