@@ -57,7 +57,7 @@ export default function Assessment() {
   useEffect(() => {
     if (!user || user.role !== 'STUDENT') {
       navigate('/')
-      return
+      return undefined
     }
 
     const startAttempt = async () => {
@@ -89,12 +89,12 @@ export default function Assessment() {
     const newSocket = io(`${API_BASE}`)
     setSocket(newSocket)
 
-    newSocket.on('terminate_attempt', (data) => {
+    newSocket.on('terminate_attempt', (data: { reason: string }) => {
       toast.error('Your attempt has been terminated by the proctoring system: ' + data.reason)
       navigate('/student/dashboard')
     })
 
-    return () => newSocket.disconnect()
+    return () => { newSocket.disconnect() }
   }, [id, user, navigate, token])
 
   // Update answersRef when answers change
