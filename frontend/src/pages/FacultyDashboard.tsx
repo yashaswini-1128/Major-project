@@ -33,6 +33,10 @@ export default function FacultyDashboard() {
   const [isEditOpen, setIsEditOpen] = useState(false)
   // Scores
   const [scoresModal, setScoresModal] = useState<{ open: boolean; testTitle: string; attempts: any[]; totalMarks: number }>({ open: false, testTitle: '', attempts: [], totalMarks: 0 })
+  // Inline delete confirmation
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'test' | 'student'; id: string; name: string } | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
 
   // Helper to build blank question
   const blankQuestion = () => ({ text: '', correctAnswer: '', hintText: '', imageUrl: '', imageFiles: [] as File[], imagePreviews: [] as string[] })
@@ -108,8 +112,12 @@ export default function FacultyDashboard() {
     }
   }
 
-  const handleDeleteStudent = async (id: string, name: string) => {
-    if (!window.confirm(`Delete student "${name}"? This cannot be undone.`)) return
+  const handleDeleteStudent = (id: string, name: string) => {
+    setDeleteConfirm({type:'student',id,name})
+    setShowDeleteConfirm(true)
+  }
+
+  const doDeleteStudent = async (id: string, name: string) => {
     try {
       const res = await fetch(`${API_BASE}/api/faculty/students/${id}`, {
         method: 'DELETE',
@@ -302,18 +310,22 @@ export default function FacultyDashboard() {
     }
   };
 
-  const handleDeleteTest = async (id: string, title: string) => {
-    if (!window.confirm(`Delete assessment "${title}"? This cannot be undone.`)) return;
+  const handleDeleteTest = (id: string, title: string) => {
+    setDeleteConfirm({ type: 'test', id, name: title })
+    setShowDeleteConfirm(true)
+  }
+
+  const doDeleteTest = async (id: string, name: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/faculty/tests/${id}`, {
+      const res = await fetch(API_BASE + '/api/faculty/tests/' + id, {
         method: 'DELETE',
-        headers: { 'x-user-role': 'FACULTY', 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error('Failed to delete');
-      toast.success(`${title} removed successfully.`);
-      fetchData();
+        headers: { 'x-user-role': 'FACULTY', 'Authorization': 'Bearer ' + token }
+      })
+      if (!res.ok) throw new Error('Failed to delete')
+      toast.success(name + ' removed successfully.')
+      fetchData()
     } catch {
-      toast.error('Failed to delete assessment.');
+      toast.error('Failed to delete assessment.')
     }
   }
 
@@ -1131,6 +1143,46 @@ export default function FacultyDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Inline Delete Confirmation */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-rose-50 px-6 pt-8 pb-6 text-center">
+              <div className="w-14 h-14 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-7 h-7 text-rose-600" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 mb-2">
+                Delete {deleteConfirm.type === 'test' ? 'Assessment' : 'Student'}?
+              </h2>
+              <p className="text-slate-500 text-sm leading-relaxed">
+                You are about to permanently delete{' '}
+                <span className="font-semibold text-slate-800">"{deleteConfirm.name}"</span>.
+                This action <span className="font-bold text-rose-600">cannot be undone</span>.
+              </p>
+            </div>
+            <div className="px-6 py-5 flex gap-3">
+              <button
+                className="flex-1 h-11 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 transition-colors text-sm"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                No, Cancel
+              </button>
+              <button
+                className="flex-1 h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold transition-colors text-sm"
+                onClick={() => {
+                  const { type, id, name } = deleteConfirm
+                  setShowDeleteConfirm(false)
+                  if (type === 'test') doDeleteTest(id, name)
+                  else doDeleteStudent(id, name)
+                }}
+              >
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
